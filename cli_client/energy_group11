@@ -1,0 +1,348 @@
+#!/home/ntonasa/miniconda3/envs/TL/bin/python
+
+import os
+import sys
+import requests
+import urllib3
+from argparse import ArgumentParser, FileType
+from colorama import init as colorinit
+from termcolor import cprint 
+from pyfiglet import figlet_format
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+port = 8765
+BASE_URL = f'https://localhost:{port}/energy/api/'
+TOKEN_FILE_PATH = "/home/ntonasa/softeng19bAPI.token"
+SSL_VERIFY = False
+
+def main():
+   welcome()
+   main_parser = generate_parser()
+   args = main_parser.parse_args()
+   params = vars(args)
+   if 'func' in params:
+      response = args.func(params)
+      if response.status_code == 400:
+         print("400: BAD REQUEST")
+      elif response.status_code == 500:
+         print("500: Internal Server Error")
+      else:
+         if params['format'] == 'json':
+            print(response.json())
+         else:
+            print(response.text)
+
+def get_token():
+   if os.path.isfile(TOKEN_FILE_PATH):
+      f = open(TOKEN_FILE_PATH, 'r')
+      token = f.read()
+      f.close()
+      return token
+   else:
+      return None
+
+def health_check(params):
+   return requests.get(BASE_URL+"HealthCheck", verify=SSL_VERIFY)
+
+def reset(params):
+   return requests.post(BASE_URL+"Reset", verify=SSL_VERIFY)
+
+def login(params):
+   payload = {'username': params['username'], 'password': params['passw']}
+   response = requests.post(BASE_URL+"Login", data=payload, verify=SSL_VERIFY)
+   if response.status_code==200:
+      f = open(TOKEN_FILE_PATH, "w")
+      token = response.json()['token']
+      f.write(token)
+      f.close()
+   return response
+
+def logout(params):
+   token = get_token()
+   response = requests.post(BASE_URL+"Logout", headers={'X-OBSERVATORY-AUTH': token}, verify=SSL_VERIFY)
+   if token:
+      os.remove("/home/ntonasa/softeng19bAPI.token")
+   return response
+
+def new_user(params):
+   payload = {'username': params['newuser'], 'password': params['passw'], 'email': params['email'], 'quota': params['quota']}
+   token = get_token()
+   return requests.post(BASE_URL+"Admin/users", headers={'X-OBSERVATORY-AUTH': token}, data=payload, verify=SSL_VERIFY)
+
+def user_status(params):
+   token = get_token()
+   return requests.get(BASE_URL+"Admin/users/"+params['userstatus'], headers={'X-OBSERVATORY-AUTH': token}, verify=SSL_VERIFY)
+
+def mod_user(params):
+   token = get_token()
+   payload = {'username': params['moduser'], 'password': params['passw'], 'email': params['email'], 'quota': params['quota']}
+   return requests.put(BASE_URL+"Admin/users/"+params['moduser'], headers={'X-OBSERVATORY-AUTH': token}, data=payload, verify=SSL_VERIFY)
+
+def new_data(params):
+   token = get_token()
+   files = {'file' : params['source']}
+   return requests.post(BASE_URL+"Admin/"+params['newdata'], headers={'X-OBSERVATORY-AUTH': token}, files=files, verify=SSL_VERIFY)
+
+def actual_total_load(params):
+   token = get_token()
+   if params['date']:
+      api_call = 'date'
+   elif params['month']:
+      api_call = 'month'
+   elif params['year']:
+      api_call = 'year'
+
+   return requests.get(
+      BASE_URL+f"ActualTotalLoad/{params['area']}/{params['timeres']}/{api_call}/{params[api_call]}?format={params['format']}", 
+      headers={'X-OBSERVATORY-AUTH': token}, 
+      verify=SSL_VERIFY
+   )
+
+def aggregated_generation_per_type(params):
+   token = get_token()
+   if params['date']:
+      api_call = 'date'
+   elif params['month']:
+      api_call = 'month'
+   elif params['year']:
+      api_call = 'year'
+
+   return requests.get(
+      BASE_URL+f"AggregatedGenerationPerType/{params['area']}/{params['prodtype']}/{params['timeres']}/{api_call}/{params[api_call]}?format={params['format']}", 
+      headers={'X-OBSERVATORY-AUTH': token}, 
+      verify=SSL_VERIFY
+   )
+
+def day_ahead_total_load_forecast(params):
+   token = get_token()
+   if params['date']:
+      api_call = 'date'
+   elif params['month']:
+      api_call = 'month'
+   elif params['year']:
+      api_call = 'year'
+
+   return requests.get(
+      BASE_URL+f"DayAheadTotalLoadForecast/{params['area']}/{params['timeres']}/{api_call}/{params[api_call]}?format={params['format']}", 
+      headers={'X-OBSERVATORY-AUTH': token}, 
+      verify=SSL_VERIFY
+   )
+
+def actual_vs_forecast(params):
+   token = get_token()
+   if params['date']:
+      api_call = 'date'
+   elif params['month']:
+      api_call = 'month'
+   elif params['year']:
+      api_call = 'year'
+
+   return requests.get(
+      BASE_URL+f"ActualvsForecast/{params['area']}/{params['timeres']}/{api_call}/{params[api_call]}?format={params['format']}", 
+      headers={'X-OBSERVATORY-AUTH': token}, 
+      verify=SSL_VERIFY
+   )
+
+def admin(params):
+   if params['newuser']:
+      return new_user(params)
+   elif params['moduser']:
+      return mod_user(params)
+   elif params['userstatus']:
+      return user_status(params)
+   elif params['newdata']:
+      return new_data(params)
+
+
+## Helper Functions
+def welcome():
+   colorinit(strip=not sys.stdout.isatty()) # strip colors if stdout is redirected
+   cprint(figlet_format('NEXUS ELECTRIC', font='starwars'), 'blue', attrs=['bold'])
+   class color:
+      BOLD = '\033[1m'
+      DARKCYAN = '\033[36m'
+      UNDERLINE = '\033[4m'
+      END = '\033[0m'
+
+   part = '-----------------------------------------------------------'
+   print(color.DARKCYAN + part+'\nWelcome to the Nexus ELectric official command line client!\n'+part+'\n' + color.END)
+
+def generate_parser():
+   main_parser = ArgumentParser(
+      prog='energy_group11',
+      description="NexusElectric API CLI client"
+   )
+   main_parser.add_argument(
+      '--format', 
+      metavar="type", 
+      choices=['json', 'csv'], 
+      default="json"
+   )
+   scope_subparsers = main_parser.add_subparsers(
+      metavar="scope",
+      dest="scope"
+   )
+
+   scope_subparsers.required = True
+
+   configure_parser_health(scope_subparsers)
+   configure_parser_reset(scope_subparsers)
+   configure_parser_login(scope_subparsers)
+   configure_parser_logout(scope_subparsers)
+   configure_parser_actual(scope_subparsers)
+   configure_parser_aggregated(scope_subparsers)
+   configure_parser_day_ahead(scope_subparsers)
+   configure_parser_actual_vs_forecast(scope_subparsers)
+   configure_parser_admin(scope_subparsers)
+
+   return main_parser
+
+# Health Check Parser
+def configure_parser_health(scope_subparsers):
+    health_check_subparser = scope_subparsers.add_parser('HealthCheck', help="check database connectivity")
+    health_check_subparser.set_defaults(func=health_check)
+
+# Reset Parser
+def configure_parser_reset(scope_subparsers):
+    reset_subparser = scope_subparsers.add_parser('Reset', help="reset database")
+    reset_subparser.set_defaults(func=reset)
+
+# Login Parser
+def configure_parser_login(scope_subparsers):
+    login_subparser = scope_subparsers.add_parser(
+        'Login', 
+        help="authenticate user using credentials and obtain token"
+    )
+    login_subparser.add_argument(
+        '--username', 
+        metavar="username", 
+        required=True
+    )
+    login_subparser.add_argument(
+        '--passw', 
+        metavar="password", 
+        required=True
+    )
+
+    login_subparser.set_defaults(func=login)
+
+# Logout Parser
+def configure_parser_logout(scope_subparsers):
+   logout_subparser = scope_subparsers.add_parser(
+      'Logout', 
+      help="remove authentication token"
+   )
+
+   logout_subparser.set_defaults(func=logout)
+
+# Actual Total Load Parser
+def configure_parser_actual(scope_subparsers):
+    p = scope_subparsers.add_parser(
+        'ActualTotalLoad', 
+        help="query ActualTotalLoad dataset"
+    )
+
+    add_dataset_patameters(p)
+    p.set_defaults(func=actual_total_load)
+
+# Aggregated Generation Per Type
+def configure_parser_aggregated(scope_subparsers):
+   p = scope_subparsers.add_parser(
+      'AggregatedGenerationPerType', 
+      help="query AggregatedGenerationPerType dataset"
+   )
+
+   filter_params = add_dataset_patameters(p)
+   filter_params.add_argument(
+      '--prodtype', 
+      required=True,
+      help="production type"
+   )
+
+   p.set_defaults(func=aggregated_generation_per_type)
+
+# Day Ahead Total Load Forecast
+def configure_parser_day_ahead(scope_subparsers):
+   p = scope_subparsers.add_parser(
+      'DayAheadTotalLoadForecast', 
+      help="query DayAheadTotalLoadForecast dataset"
+   )
+
+   add_dataset_patameters(p)
+   p.set_defaults(func=day_ahead_total_load_forecast)
+
+# Actual vs Forecast
+def configure_parser_actual_vs_forecast(scope_subparsers):
+   p = scope_subparsers.add_parser(
+      'ActualvsForecast', 
+      help="query ActualvsForecast dataset"
+   )
+
+   add_dataset_patameters(p)
+   p.set_defaults(func=actual_vs_forecast)
+
+# Admin Parser
+def configure_parser_admin(scope_subparsers):
+   p = scope_subparsers.add_parser(
+      'Admin',
+      help="Application & User Management"
+   )
+
+   newuser_group = p.add_argument_group("Newuser options")
+   newuser_group.add_argument('--newuser', metavar="username")
+   newuser_group.add_argument('--passw', metavar="password")
+   newuser_group.add_argument('--email', metavar="email")
+   newuser_group.add_argument('--quota', type=int, metavar="quota")
+
+   moduser_group = p.add_argument_group("Moduser options")
+   moduser_group.add_argument('--moduser', metavar="username")
+   #  moduser_group.add_argument('--passw', metavar="password", required=True)
+   #  moduser_group.add_argument('--email', metavar="email", required=True)
+   #  moduser_group.add_argument('--quota', type=int, metavar="quota", required=True)
+
+   userstatus_group = p.add_argument_group("Userstatus options")
+   userstatus_group.add_argument('--userstatus', metavar="username")
+
+   newdata_group = p.add_argument_group('Newdata options')
+   newdata_group.add_argument('--newdata', metavar="dataset", choices=['ActualTotalLoad', 'AggregatedGenerationPerType', 'DayAheadTotalLoadForecast'])
+   newdata_group.add_argument('--source', type=FileType('r', encoding='UTF-8'), metavar="filename")
+
+   p.set_defaults(func=admin)
+
+# Dataset Arguments
+def add_dataset_patameters(p):
+    dataset_params = p.add_argument_group("Dataset filtering parameters")
+    date_params = dataset_params.add_mutually_exclusive_group()
+    dataset_params.add_argument(
+        '--area', 
+        metavar="area_name", 
+        required=True,
+        help="area name"
+    )
+    dataset_params.add_argument(
+        '--timeres', 
+        choices=['PT15M', 'PT30M', 'PT60M'], 
+        required=True, 
+        help="resolution type description"
+    )
+    date_params.add_argument(
+        '--date', 
+        #metavar="YYYY-MM-DD", 
+        help="date in YYYY-MM-DD format to filter dataset"
+    )
+    date_params.add_argument(
+        '--month', 
+        #metavar="YYYY-MM", 
+        help="date in YYYY-MM format to filter dataset"
+    )
+    date_params.add_argument(
+        '--year', 
+        #metavar="YYYY", 
+        help="date in YYYY format to filter dataset"
+    )
+
+    return dataset_params
+
+if __name__ == '__main__':
+   main()

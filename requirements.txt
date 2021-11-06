@@ -1,0 +1,7 @@
+django
+django-extensions
+django-filter
+django-sslserver
+djangorestframework
+djangorestframework-csv
+mysqlclient

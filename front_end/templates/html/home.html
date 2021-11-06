@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Nexus Electric{% endblock %}
+{% block headextras %}
+    <style>
+        .container{
+            max-width: none;
+            width: 98%;
+        }
+
+        .form-control{
+            min-width: 100%;
+        }
+    </style>
+{% endblock %}
+{% block maincontent %}
+<h2 style="color:white">Data Visualization</h2>
+<hr />
+<div class="form-horizontal">
+    <div class="container-fluid" style="width: 95%; margin: 0;">
+        <div class="card-deck" style="max-height: 100vh;">
+            <div class="card" style="max-width: 25%;">
+                <div class="card-header">
+                    <h5 class="card-title" style="margin-bottom: 0;">Dataset Filters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="control-label" for="dataset">Choose dataset:</label>
+                        <select class="form-control" id="dataset" name="dataset">
+                            <option value="ActualTotalLoad">Actual Total Load</option>
+                            <option value="AggregatedGenerationPerType">Aggregated Generation Per Type</option>
+                            <option value="DayAheadTotalLoadForecast">Day Ahead Total Load Forecast</option>
+                            <option value="ActualvsForecast">Actual vs Forecast</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="control-label" for="area">Area</label>
+                        <input class="form-control" id="area" name="area" placeholder="Area Name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="control-label" for="resolution">Resolution</label>
+                        <select class="form-control" id="resolution" name="resolution">
+                            <option value="PT15M">15 minute data</option>
+                            <option value="PT30M">30 minute data</option>
+                            <option value="PT60M">Hourly Data</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="control-label" for="prodtype">Production Type</label>
+                        <input class="form-control" id="prodtype" name="prodtype" placeholder="Production Type" />
+                    </div>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <label class="form-check-label">
+                            <input type="checkbox" class="form-check-input" id="prodtypeall" name="prodtypeall" value="AllTypes" />All Production Types
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="btn-group btn-group-toggle" role="group" data-toggle="buttons" id="btnsapicall" style="width: 100%;">
+                            <label class="btn btn-outline-secondary" title="Date API Call">
+                                <input type="radio" name="date_func" id="date_func_date" value="date" checked />Date
+                            </label>
+                            <label class="btn btn-outline-secondary active" title="Month API Call">
+                                <input type="radio" name="date_func" id="date_func_month" value="month" />Month
+                            </label>
+                            <label class="btn btn-outline-secondary" title="Year API Call">
+                                <input type="radio" name="date_func" id="date_func_year" value="year" />Year
+                            </label>
+                        </div>
+                        <br/>
+                        <input class="form-control" name="date" id="date" placeholder="YYYY[-MM[-DD]]" />
+                    </div>
+                    <div class="form-group">
+                        <input type="submit" class="btn btn-success" style="min-width: 100%" value="Get Data" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="max-width: 75%; max-height: 70vh;">
+                <div class="card-body" style="overflow: scroll;">
+                    {% if data_table %}
+                        <table class="table table-hover">
+                            <thead class="thead-dark">
+                                <tr>
+                                    {% for head in data_table.headers %}
+                                        <th>{{ head }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody class="text-center">
+                                {% for datarow in data_table.rows %}
+                                    <tr>
+                                        {% for data in datarow %}
+                                            <td>{{ data }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% elif error_message %}
+                        <p class="text-danger">Wrong Parameter Format!</p>
+                    {% else %}
+                        <p>Select Dataset and Filter Parameters and press "Get Data"</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
